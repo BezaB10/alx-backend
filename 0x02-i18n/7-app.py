@@ -1,11 +1,36 @@
 #!/usr/bin/env python3
-""" a script that starts a Basic Babel setup """
-
-from flask import request, Flask, render_template, g
+"""
+Flask app
+"""
+from flask import (
+    Flask,
+    render_template,
+    request,
+    g
+)
 from flask_babel import Babel
+from datetime import timezone as tmzn
 from pytz import timezone
 import pytz.exceptions
-from typing import Union, Optional
+from typing import (
+    Dict,
+    Union
+)
+
+
+class Config(object):
+    """
+    Configuration for Babel
+    """
+    LANGUAGES = ["en", "fr"]
+    BABEL_DEFAULT_LOCALE = "en"
+    BABEL_DEFAULT_TIMEZONE = "UTC"
+
+
+app = Flask(__name__)
+app.config.from_object(Config)
+babel = Babel(app)
+
 
 users = {
     1: {"name": "Balou", "locale": "fr", "timezone": "Europe/Paris"},
@@ -14,75 +39,73 @@ users = {
     4: {"name": "Teletubby", "locale": None, "timezone": "Europe/London"},
 }
 
-app = Flask(__name__)
-babel = Babel(app)
 
-
-class Config(object):
-    '''Babel config'''
-    LANGUAGES = ['en', 'fr']
-    BABEL_DEFAULT_LOCALE = 'en'
-    BABEL_DEFAULT_TIMEZONE = 'UTC'
-
-
-app.config.from_object('7-app.Config')
-
-
-@app.route('/', methods=['GET'], strict_slashes=False)
-def hello() -> str:
-    ''' returns a simple page '''
-    return render_template('7-index.html')
-
-
-@babel.localeselector
-def get_locale() -> str:
-    '''determine the best match for supported languages
-       detect if the incoming request contains locale
-    '''
-    if request.args.get('locale'):
-        locale = request.args.get('locale')
-        if locale in app.config['LANGUAGES']:
-            return locale
-    elif g.user and g.user.get('locale')\
-            and g.user.get('locale') in app.config['LANGUAGES']:
-        return g.user.get('locale')
-    else:
-        return request.accept_languages.best_match(app.config['LANGUAGES'])
-
-
-def get_user() -> Union[dict, None]:
-    '''returns a user dictionary or None'''
-    if request.args.get('login_as'):
-        user = int(request.args.get('login_as'))
-        if user in users:
-            return users.get(user)
-    else:
-        return None
+def get_user() -> Union[Dict, None]:
+    """
+    Returns a user dictionary or None if ID value can't be found
+    or if 'login_as' URL parameter was not found
+    """
+    id = request.args.get('login_as', None)
+    if id and int(id) in users.keys():
+        return users.get(int(id))
+    return None
 
 
 @app.before_request
 def before_request():
-    '''to find a user if any'''
-    g.user = get_user()
+    """
+    Add user to flask.g if user is found
+    """
+    user = get_user()
+    g.user = user
+
+
+@babel.localeselector
+def get_locale():
+    """
+    Select and return best language match based on supported languages
+    """
+    loc = request.args.get('locale')
+    if loc in app.config['LANGUAGES']:
+        return loc
+    if g.user:
+        loc = g.user.get('locale')
+        if loc and loc in app.config['LANGUAGES']:
+            return loc
+    loc = request.headers.get('locale', None)
+    if loc in app.config['LANGUAGES']:
+        return loc
+    return request.accept_languages.best_match(app.config['LANGUAGES'])
 
 
 @babel.timezoneselector
-def get_timezone() -> Optional[str]:
-    '''returns a URL-provided or user time zone'''
-    if request.args.get('timezone'):
-        timezone = request.args.get('timezone')
+def get_timezone():
+    """
+    Select and return appropriate timezone
+    """
+    tzone = request.args.get('timezone', None)
+    if tzone:
         try:
-            return timezone(timezone).zone
+            return timezone(tzone).zone
         except pytz.exceptions.UnknownTimeZoneError:
-            return None
-    elif g.user and g.user.get('timezone'):
+            pass
+    if g.user:
         try:
-            return timezone(g.user.get('timezone')).zone
+            tzone = g.user.get('timezone')
+            return timezone(tzone).zone
         except pytz.exceptions.UnknownTimeZoneError:
-            return None
-    else:
-        return request.accept_languages.best_match(app.config['LANGUAGES'])
+            pass
+    dflt = app.config['BABEL_DEFAULT_TIMEZONE']
+    return dflt
+
+
+@app.route('/', strict_slashes=False)
+def index() -> str:
+    """
+    Handles / route
+    """
+    return render_template('5-index.html')
 
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000)
+    app.run(port="5000", host="0.0.0.0", debug=True)

@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-""" a script that starts a Flask application """
-from flask import Flask, render_template, request
-from flask_babel import Babel
-app = Flask(__name__, static_url_path='')
+"""
+Flask app
+"""
+from flask import Flask, render_template
 
 
-@app.route('/', methods=['GET'], strict_slashes=False)
-def hello():
-    ''' returns a simple page '''
+app = Flask(__name__)
+
+
+@app.route('/', strict_slashes=False)
+def index() -> str:
+    """
+    Handles / route
+    """
     return render_template('0-index.html')
 
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000)
+    app.run(port="5000", host="0.0.0.0", debug=True)
